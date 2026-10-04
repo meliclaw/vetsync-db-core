@@ -76,8 +76,13 @@ services:
     container_name: vetsync-prd-supabase-edge-runtime
     networks: [vetsync-db-core-prd]
     environment:
-      # Serviço interno vetsync-diagnostic (Rust/Axum), definido abaixo.
-      VETSYNC_DIAGNOSTIC_URL: ${VETSYNC_DIAGNOSTIC_URL:-http://vetsync-diagnostic:8090}
+      # Referência pendurada: nenhum serviço "vetsync-diagnostic" existe neste
+      # compose (nem no mirror local, nem aqui) — setar sem VETSYNC_DIAGNOSTIC_URL
+      # no .env resolve pra um hostname que não existe. Na VPS de produção
+      # (fora deste arquivo, que é só o mirror local), vetsync-diagnostic e
+      # ollaya rodam como systemd units no host, não como containers — ver
+      # deploy/README.md, Fase 10, pra arquitetura e valor real.
+      VETSYNC_DIAGNOSTIC_URL: ${VETSYNC_DIAGNOSTIC_URL:-}
     volumes:
       - ${VETSYNC_PRD_FUNCTIONS_DIR:-./volumes-prd/functions}:/home/deno/functions:z
       # The application tree does not contain the self-hosted Edge Runtime router.
