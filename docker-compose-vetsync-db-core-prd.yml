@@ -1,0 +1,147 @@
+############
+# Docker compose override for the PRD OrbStack instance.
+#
+# Use on top of docker-compose.yml, with a dedicated env file that points
+# to non-conflicting host ports for this stack.
+#
+# Example:
+#   set -a && source .env && source env/vetsync-db-core-prd.env && set +a
+#   docker compose --profile vetsync-db-core-prd \
+#     -f docker-compose.yml -f docker-compose-vetsync-db-core-prd.yml up -d
+#
+############
+
+name: vetsync-db-core-prd
+
+services:
+  studio:
+    profiles: [vetsync-db-core-prd]
+    container_name: vetsync-prd-supabase-studio
+    networks:
+      vetsync-db-core-prd:
+        aliases: [studio]
+    volumes:
+      - ${VETSYNC_PRD_SNIPPETS_DIR:-./volumes-prd/snippets}:/app/snippets:z
+      - ${VETSYNC_PRD_FUNCTIONS_DIR:-./volumes-prd/functions}:/app/edge-functions:ro,z
+
+  kong:
+    profiles: [vetsync-db-core-prd]
+    container_name: vetsync-prd-supabase-kong
+    networks:
+      vetsync-db-core-prd:
+        aliases: [kong, api-gw]
+    volumes:
+      - ${VETSYNC_PRD_KONG_YML:-./volumes-prd/api/kong.yml}:/home/kong/temp.yml:ro,z
+      - ${VETSYNC_PRD_KONG_ENTRYPOINT:-./volumes-prd/api/kong-entrypoint.sh}:/home/kong/kong-entrypoint.sh:ro,z
+
+  auth:
+    profiles: [vetsync-db-core-prd]
+    container_name: vetsync-prd-supabase-auth
+    networks: [vetsync-db-core-prd]
+
+  rest:
+    profiles: [vetsync-db-core-prd]
+    container_name: vetsync-prd-supabase-rest
+    networks: [vetsync-db-core-prd]
+
+  realtime:
+    profiles: [vetsync-db-core-prd]
+    container_name: vetsync-prd-supabase-realtime
+    # Kong + Realtime tenant id expect this DNS name (base compose uses it as container_name).
+    # Keep a unique PRD container_name, but restore the hostname/alias Kong routes to.
+    hostname: realtime-dev.supabase-realtime
+    networks:
+      vetsync-db-core-prd:
+        aliases: [realtime, realtime-dev.supabase-realtime]
+
+  storage:
+    profiles: [vetsync-db-core-prd]
+    container_name: vetsync-prd-supabase-storage
+    networks: [vetsync-db-core-prd]
+    volumes:
+      - ${VETSYNC_PRD_STORAGE_DIR:-./volumes-prd/storage}:/var/lib/storage:z
+
+  imgproxy:
+    profiles: [vetsync-db-core-prd]
+    container_name: vetsync-prd-supabase-imgproxy
+    networks: [vetsync-db-core-prd]
+
+  meta:
+    profiles: [vetsync-db-core-prd]
+    container_name: vetsync-prd-supabase-meta
+    networks: [vetsync-db-core-prd]
+
+  functions:
+    profiles: [vetsync-db-core-prd]
+    container_name: vetsync-prd-supabase-edge-runtime
+    networks: [vetsync-db-core-prd]
+    environment:
+      # Referência pendurada: nenhum serviço "vetsync-diagnostic" existe neste
+      # compose (nem no mirror local, nem aqui) — setar sem VETSYNC_DIAGNOSTIC_URL
+      # no .env resolve pra um hostname que não existe. Na VPS de produção
+      # (fora deste arquivo, que é só o mirror local), vetsync-diagnostic e
+      # ollaya rodam como systemd units no host, não como containers — ver
+      # deploy/README.md, Fase 10, pra arquitetura e valor real.
+      VETSYNC_DIAGNOSTIC_URL: ${VETSYNC_DIAGNOSTIC_URL:-}
+    volumes:
+      - ${VETSYNC_PRD_FUNCTIONS_DIR:-./volumes-prd/functions}:/home/deno/functions:z
+      # The application tree does not contain the self-hosted Edge Runtime router.
+      # Overlay it after the parent mount so user functions remain independently managed.
+      - ${VETSYNC_PRD_FUNCTIONS_MAIN_DIR:-./volumes-prd/functions/main}:/home/deno/functions/main:ro,z
+      - deno-cache-prd:/root/.cache/deno
+
+  db:
+    profiles: [vetsync-db-core-prd]
+    container_name: vetsync-prd-supabase-db
+    image: supabase/postgres:17.6.1.155
+    ports:
+      - "55464:${POSTGRES_PORT}"
+    networks: [vetsync-db-core-prd]
+    volumes:
+      - ${VETSYNC_PRD_DB_DIR:-./volumes-prd/db}/realtime.sql:/docker-entrypoint-initdb.d/migrations/99-realtime.sql:Z
+      - ${VETSYNC_PRD_DB_DIR:-./volumes-prd/db}/webhooks.sql:/docker-entrypoint-initdb.d/init-scripts/98-webhooks.sql:Z
+      - ${VETSYNC_PRD_DB_DIR:-./volumes-prd/db}/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:Z
+      - ${VETSYNC_PRD_DB_DIR:-./volumes-prd/db}/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:Z
+      - ${VETSYNC_PRD_DB_DATA_DIR:-./volumes-prd/db/data}:/var/lib/postgresql/data:Z
+      - ${VETSYNC_PRD_DB_DIR:-./volumes-prd/db}/_supabase.sql:/docker-entrypoint-initdb.d/migrations/97-_supabase.sql:Z
+      - ${VETSYNC_PRD_DB_DIR:-./volumes-prd/db}/logs.sql:/docker-entrypoint-initdb.d/migrations/99-logs.sql:Z
+      - ${VETSYNC_PRD_DB_DIR:-./volumes-prd/db}/pooler.sql:/docker-entrypoint-initdb.d/migrations/99-pooler.sql:Z
+      - db-config-prd:/etc/postgresql-custom
+
+  supavisor:
+    profiles: [vetsync-db-core-prd]
+    container_name: vetsync-prd-supabase-pooler
+    networks: [vetsync-db-core-prd]
+    volumes:
+      - ${VETSYNC_PRD_POOLER_DIR:-./volumes-prd/pooler/pooler.exs}:/etc/pooler/pooler.exs:ro,z
+
+  # Diagnóstico de gravidade de laudos (chamado só pela edge function
+  # diagnose-medical-report). Fala com a Laya (ollaya no host, :11436) via
+  # host.docker.internal — o ollaya rejeita Host header que não seja local
+  # (403 "Host ... is not allowed"), então não dá pra usar o nome do container
+  # meliclaw-systemone-core-2. Não expõe porta no host.
+  vetsync-diagnostic:
+    profiles: [vetsync-db-core-prd]
+    container_name: vetsync-prd-diagnostic
+    build:
+      context: ${VETSYNC_DIAGNOSTIC_DIR:-../../../../agentic-platform/meliclaw-decision-core/vetsync-diagnostic}
+    restart: unless-stopped
+    networks: [vetsync-db-core-prd]
+    environment:
+      MELICLAW_SYSTEMONE_SYSTEMONE_URL: ${MELICLAW_SYSTEMONE_SYSTEMONE_URL:-http://host.docker.internal:11436/v1/systemone}
+      MELICLAW_SYSTEMONE_MODEL: ${MELICLAW_SYSTEMONE_MODEL:-laya:multilingual}
+      MELICLAW_SYSTEMONE_API_KEY: ${MELICLAW_SYSTEMONE_API_KEY:-}
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/8090'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+networks:
+  vetsync-db-core-prd:
+    name: vetsync-db-core-prd
+    driver: bridge
+
+volumes:
+  db-config-prd:
+  deno-cache-prd:

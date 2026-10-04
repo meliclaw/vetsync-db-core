@@ -1,0 +1,115 @@
+# ==============================================================================
+# VetSync PRD — Caddy edge configuration
+#
+# Caddy is the ONLY process bound to the public interface. It terminates TLS
+# and routes by Host. Everything else lives on internal Docker networks.
+#
+# Deliberately absent: console.vetsync.com.br (Supabase Studio).
+# Studio is exposed to the tailnet only, via:
+#     tailscale serve --bg --https=443 http://127.0.0.1:8000
+# Reason: Studio authenticates with ONE shared basic-auth credential, has no
+# MFA and no audit trail, and its SQL editor reads and writes every tenant's
+# data with RLS bypassed. It must never answer on the public internet.
+# ==============================================================================
+
+{
+	email {$ACME_EMAIL}
+
+	# Admin API stays on loopback inside the container (healthcheck + reload).
+	admin 127.0.0.1:2019
+
+	servers {
+		# Caddy is the only hop in front of Kong, so trust nothing upstream.
+		trusted_proxies static private_ranges
+	}
+}
+
+# ------------------------------------------------------------------ snippets
+# deploy.sh rewrites this file to flip blue <-> green, then reloads Caddy.
+# It defines the (web_upstream) snippet.
+import /etc/caddy/snippets/*.caddy
+
+# ------------------------------------------------------------ common headers
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(self), microphone=(self), geolocation=()"
+		-Server
+	}
+}
+
+(log_json) {
+	log {
+		output stdout
+		format json
+	}
+}
+
+# ============================================================== React web app
+# app.  = staff application
+# admin. = super_admin console (same bundle, different entry route)
+{$APP_DOMAIN}, {$ADMIN_DOMAIN} {
+	import security_headers
+	import log_json
+
+	encode zstd gzip
+
+	# Long cache for fingerprinted assets, no cache for the shell.
+	@immutable path /assets/* /icons/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	@shell path / /index.html /config.json /manifest.webmanifest /sw.js
+	header @shell Cache-Control "no-cache, must-revalidate"
+
+	import web_upstream
+}
+
+# ==================================================== Supabase API (via Kong)
+{$API_DOMAIN} {
+	import security_headers
+	import log_json
+
+	encode zstd gzip
+
+	# ALLOWLIST, not a blocklist.
+	#
+	# Kong's dashboard route matches the bare prefix `/`, so any deny-list
+	# would leak Studio (and pg-meta at /pg) through the API hostname. Only
+	# the documented Supabase API surfaces are forwarded; everything else 404s.
+	@supabase_api path \
+		/auth/v1/* \
+		/rest/v1/* \
+		/graphql/v1/* \
+		/realtime/v1/* \
+		/storage/v1/* \
+		/functions/v1/* \
+		/.well-known/*
+
+	handle @supabase_api {
+		reverse_proxy kong:8000 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+
+			# Edge functions call slow third parties (Meta, Stripe, DocuSign,
+			# ZapSign, LiveKit). kong.yml already allows 150s on /functions/v1.
+			transport http {
+				read_timeout 180s
+				write_timeout 180s
+			}
+		}
+	}
+
+	# Websocket upgrade for Realtime is handled by the matcher above; Caddy
+	# proxies Upgrade/Connection headers natively.
+
+	handle {
+		respond "Not Found" 404
+	}
+}
+
+# ==================================== HTTP -> HTTPS + ACME (implicit in Caddy)
+# Caddy serves the ACME HTTP-01 challenge on :80 and redirects everything else
+# to HTTPS automatically. No explicit :80 block is required.

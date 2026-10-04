@@ -1,0 +1,23 @@
+# Managed by deploy/scripts/deploy-web.sh — DO NOT EDIT BY HAND.
+#
+# This file lives on the host at:
+#   /srv/vetsync/caddy/snippets/web-upstream.caddy
+#
+# It is the blue/green switch. deploy-web.sh writes the candidate colour here
+# and runs `caddy reload`, which swaps the upstream with no dropped
+# connections. rollback-web.sh writes the previous colour back.
+#
+# Current active colour: blue
+
+(web_upstream) {
+	reverse_proxy web-blue:8080 {
+		health_uri /healthz
+		health_interval 5s
+		health_timeout 2s
+
+		# If the active colour dies, Caddy stops sending it traffic rather
+		# than returning 502s to clinics mid-appointment.
+		lb_policy first
+		fail_duration 10s
+	}
+}

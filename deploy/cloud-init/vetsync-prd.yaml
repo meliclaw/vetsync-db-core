@@ -1,0 +1,212 @@
+#cloud-config
+# ==============================================================================
+# VetSync PRD — Scaleway BASIC2-A4C-16G (ARM64 / Ampere), Ubuntu 24.04 LTS
+#
+# Bootstrap ONLY. This file provisions a host that can receive a release.
+# It deliberately contains NO secrets: cloud-init user-data is readable from
+# the instance metadata service and is retained in /var/lib/cloud on disk.
+#
+# Secrets arrive later, out of band, into /etc/vetsync/prd.env (0600 root:root).
+# The Tailscale auth key is entered interactively on first boot — never here.
+# ==============================================================================
+
+package_update: true
+package_upgrade: true
+
+# ------------------------------------------------------------------- accounts
+users:
+  - name: deploy
+    gecos: VetSync deployment account
+    shell: /bin/bash
+    groups: [docker]
+    lock_passwd: true
+    sudo:
+      # Narrow, explicit. Membership in `docker` is already root-equivalent;
+      # do not widen this further.
+      - "ALL=(ALL) NOPASSWD:/usr/bin/systemctl restart docker"
+      - "ALL=(ALL) NOPASSWD:/usr/bin/systemctl reload docker"
+    ssh_authorized_keys:
+      # REPLACE with the ed25519 deploy public key before first boot.
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA_REPLACE_ME_ vetsync-deploy
+
+# ---------------------------------------------------------------- base packages
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - git
+  - jq
+  - unattended-upgrades
+  - fail2ban
+  - nftables
+  - postgresql-client-17
+  - age
+  - restic
+  - htop
+  - ncdu
+
+write_files:
+  # --- Docker daemon: bounded logs, or 150 GB fills on its own -----------
+  - path: /etc/docker/daemon.json
+    permissions: "0644"
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": { "max-size": "10m", "max-file": "3" },
+        "live-restore": true,
+        "userland-proxy": false,
+        "no-new-privileges": true,
+        "default-address-pools": [
+          { "base": "172.30.0.0/16", "size": 24 }
+        ]
+      }
+
+  # --- SSH hardening -----------------------------------------------------
+  - path: /etc/ssh/sshd_config.d/99-vetsync.conf
+    permissions: "0644"
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      ChallengeResponseAuthentication no
+      MaxAuthTries 3
+      AllowUsers deploy
+      # Once Tailscale is up, tighten further:
+      #   ListenAddress 100.x.y.z
+      # so sshd stops answering on the public interface entirely.
+
+  # --- Unattended security upgrades, no surprise reboots ------------------
+  - path: /etc/apt/apt.conf.d/51vetsync-unattended
+    permissions: "0644"
+    content: |
+      Unattended-Upgrade::Automatic-Reboot "false";
+      Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+
+  # --- Kernel tuning for Postgres + many sockets --------------------------
+  - path: /etc/sysctl.d/99-vetsync.conf
+    permissions: "0644"
+    content: |
+      vm.swappiness = 10
+      vm.overcommit_memory = 0
+      net.core.somaxconn = 4096
+      net.ipv4.tcp_max_syn_backlog = 4096
+      fs.file-max = 200000
+
+  # --- Disk guard: refuse to let Postgres run the volume to 0 -------------
+  - path: /usr/local/bin/vetsync-disk-guard
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # Alerts (and logs) when the data volume crosses the danger line.
+      set -euo pipefail
+      THRESHOLD=${1:-80}
+      USED=$(df --output=pcent /srv | tail -1 | tr -dc '0-9')
+      if [ "$USED" -ge "$THRESHOLD" ]; then
+        logger -t vetsync-disk-guard -p daemon.crit \
+          "/srv at ${USED}% (threshold ${THRESHOLD}%)"
+        exit 1
+      fi
+      exit 0
+
+  - path: /etc/systemd/system/vetsync-disk-guard.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=VetSync disk usage guard
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/vetsync-disk-guard 80
+
+  - path: /etc/systemd/system/vetsync-disk-guard.timer
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Run VetSync disk guard every 15 minutes
+      [Timer]
+      OnBootSec=5min
+      OnUnitActiveSec=15min
+      [Install]
+      WantedBy=timers.target
+
+runcmd:
+  # --- Docker CE, architecture detected rather than assumed --------------
+  # The instance is ARM64 (Ampere), but hardcoding `arch=arm64` silently
+  # breaks the moment this file is reused on an x86 instance.
+  - ARCH=$(dpkg --print-architecture)
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  - chmod a+r /etc/apt/keyrings/docker.gpg
+  - |
+    echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" \
+      > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now docker
+
+  # --- Tailscale (no auth key here — see NOTE below) ---------------------
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - systemctl enable --now tailscaled
+  # NOTE: finish enrolment interactively on first login, so the auth key
+  # never lands in instance metadata:
+  #     sudo tailscale up --ssh --hostname=vetsync-vet-br-prd
+
+  # --- Swap: 8 GB, so a Postgres spike degrades instead of OOM-killing ---
+  - fallocate -l 8G /swapfile
+  - chmod 600 /swapfile
+  - mkswap /swapfile
+  - swapon /swapfile
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+  # --- Host firewall, defence in depth behind the security group ---------
+  # Docker writes its own nftables rules ahead of these; the Scaleway
+  # security group remains the authoritative public boundary.
+  - |
+    cat > /etc/nftables.conf <<'NFT'
+    #!/usr/sbin/nft -f
+    flush ruleset
+    table inet filter {
+      chain input {
+        type filter hook input priority 0; policy drop;
+        ct state established,related accept
+        iif lo accept
+        iifname "tailscale0" accept
+        ip protocol icmp accept
+        ip6 nexthdr ipv6-icmp accept
+        udp dport 41641 accept          # tailscale
+        tcp dport { 22, 80, 443 } accept
+        udp dport 443 accept            # HTTP/3
+      }
+      chain forward { type filter hook forward priority 0; policy accept; }
+      chain output  { type filter hook output  priority 0; policy accept; }
+    }
+    NFT
+  - systemctl enable --now nftables
+
+  # --- Directory layout: code and data strictly separated ----------------
+  - mkdir -p /opt/vetsync/releases
+  - mkdir -p /srv/vetsync/{postgres,storage,snippets,pg-wal-archive}
+  - mkdir -p /srv/vetsync/functions
+  - mkdir -p /srv/vetsync/caddy/{data,config,snippets}
+  - mkdir -p /etc/vetsync /var/backups/vetsync
+  - chown -R deploy:deploy /opt/vetsync /srv/vetsync /var/backups/vetsync
+  - chmod 700 /etc/vetsync
+  # Postgres in the supabase image runs as uid 100, gid 101 (verified).
+  - chown -R 100:101 /srv/vetsync/postgres /srv/vetsync/pg-wal-archive
+  - chmod 700 /srv/vetsync/postgres
+
+  # --- Services ----------------------------------------------------------
+  - sysctl --system
+  - systemctl enable --now unattended-upgrades fail2ban
+  - systemctl enable --now vetsync-disk-guard.timer
+  - systemctl restart ssh
+
+final_message: |
+  VetSync PRD host ready after $UPTIME seconds.
+
+  Remaining manual steps (deliberately not automated — they involve secrets):
+    1. sudo tailscale up --ssh --hostname=vetsync-vet-br-prd
+    2. install /etc/vetsync/prd.env  (0600 root:root)
+    3. attach and mount the data block volume at /srv
+    4. deploy/scripts/preflight.sh
