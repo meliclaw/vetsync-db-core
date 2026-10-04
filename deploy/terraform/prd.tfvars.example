@@ -1,0 +1,31 @@
+# Copy to prd.tfvars and fill in. prd.tfvars is gitignored.
+#
+# Credentials are NOT set here. Export them instead:
+#   export SCW_ACCESS_KEY=...
+#   export SCW_SECRET_KEY=...
+#   export SCW_DEFAULT_ORGANIZATION_ID=...
+
+project_id = "00000000-0000-0000-0000-000000000000"
+
+zone   = "nl-ams-1"
+region = "nl-ams"
+
+name          = "vetsync-vet-br-prd"
+instance_type = "BASIC2-A4C-16G"
+
+root_volume_size_gb = 40
+data_volume_size_gb = 110
+data_volume_iops    = 5000
+
+# Break-glass SSH only. Everyday access is Tailscale.
+# Replace with your real administrative addresses.
+admin_ssh_cidrs = [
+  "203.0.113.4/32",
+]
+
+# Flip to false once `tailscale ssh` is confirmed working. That removes
+# port 22 from the public internet completely.
+enable_public_ssh = true
+
+backup_bucket_name    = "vetsync-prd-backups"
+backup_retention_days = 120
