@@ -171,3 +171,15 @@ examples/**/pnpm-lock.yaml
 
 # local-only lockfile for the mcp-server registry block
 apps/ui-library/registry/default/blocks/mcp-server/supabase/functions/mcp-server/deno.lock
+
+# --- deploy/ : secrets and local state, never committed ---
+deploy/terraform/.terraform/
+deploy/terraform/*.tfstate
+deploy/terraform/*.tfstate.*
+deploy/terraform/*.tfvars
+deploy/terraform/backend.hcl
+deploy/terraform/.terraform.lock.hcl
+deploy/env/prd.env
+
+# build artifacts (edge functions tarballs)
+.artifacts/

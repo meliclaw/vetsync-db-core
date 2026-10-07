@@ -267,12 +267,15 @@ otherwise the only way back in is the Scaleway serial console.
 ### Phase 4 — Versioned artifacts
 
 Edge functions ship as a tarball, not as a symlink into another repository.
-The local `VETSYNC_PRD_FUNCTIONS_DIR` climbs four levels up into
-`vetsync-os`, a path that does not exist on the VPS.
+`package-functions.sh` requires `APP_FUNCTIONS` explicitly (no default) —
+a hardcoded relative path to `vetsync-vet` already rotted once when the
+repo moved (2026-10-07). `vetsync-vet` now lives at
+`/Volumes/Backup/Projects/src/wapnet/vetsync-ecosystem/src/vetsync-vet`.
 
 ```bash
-SHA=$(git -C ../../wapnet/vetsync-os/vetsync-vet rev-parse --short HEAD)
-tar -C ../../wapnet/vetsync-os/vetsync-vet/supabase -czf functions-$SHA.tar.gz functions
+VETSYNC_VET=/Volumes/Backup/Projects/src/wapnet/vetsync-ecosystem/src/vetsync-vet
+SHA=$(git -C "$VETSYNC_VET" rev-parse --short HEAD)
+tar -C "$VETSYNC_VET/supabase" -czf functions-$SHA.tar.gz functions
 scp functions-$SHA.tar.gz deploy@vetsync-vet-br-prd:/tmp/
 
 ssh deploy@vetsync-vet-br-prd bash -s <<EOF

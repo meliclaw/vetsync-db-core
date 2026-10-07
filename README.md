@@ -1,54 +1,83 @@
-<p align="center">
-<img src="https://user-images.githubusercontent.com/8291514/213727234-cda046d6-28c6-491a-b284-b86c5cede25d.png#gh-light-mode-only">
-<img src="https://user-images.githubusercontent.com/8291514/213727225-56186826-bee8-43b5-9b15-86e839d89393.png#gh-dark-mode-only">
-</p>
+<div align="center">
 
-# Supabase
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/supabase/supabase/3-self-hosted-deployment)
 
-[Supabase](https://supabase.com) is the Postgres development platform. We're building the features of Firebase using enterprise-grade open source tools.
+</div>
 
-- [x] Hosted Postgres Database. [Docs](https://supabase.com/docs/guides/database)
-- [x] Authentication and Authorization. [Docs](https://supabase.com/docs/guides/auth)
-- [x] Auto-generated APIs.
-  - [x] REST. [Docs](https://supabase.com/docs/guides/api)
-  - [x] GraphQL. [Docs](https://supabase.com/docs/guides/graphql)
-  - [x] Realtime subscriptions. [Docs](https://supabase.com/docs/guides/realtime)
-- [x] Functions.
-  - [x] Database Functions. [Docs](https://supabase.com/docs/guides/database/functions)
-  - [x] Edge Functions [Docs](https://supabase.com/docs/guides/functions)
-- [x] File Storage. [Docs](https://supabase.com/docs/guides/storage)
-- [x] AI + Vector/Embeddings Toolkit. [Docs](https://supabase.com/docs/guides/ai)
-- [x] Dashboard
+# Self-Hosted Supabase with Docker
 
-![Supabase Dashboard](https://raw.githubusercontent.com/supabase/supabase/master/apps/www/public/images/github/supabase-dashboard.png)
+This is the official Docker Compose setup for self-hosted Supabase. It provides a complete stack with all Supabase services running locally or on your infrastructure.
 
-Watch "releases" of this repo to get notified of major updates.
+## Getting Started
 
-<kbd><img src="https://raw.githubusercontent.com/supabase/supabase/d5f7f413ab356dc1a92075cb3cee4e40a957d5b1/web/static/watch-repo.gif" alt="Watch this repo"/></kbd>
+Follow the detailed setup guide in our documentation: [Self-Hosting with Docker](https://supabase.com/docs/guides/self-hosting/docker)
+
+The guide covers:
+- Prerequisites (Git and Docker)
+- Initial setup and configuration
+- Securing your installation
+- Accessing services
+- Updating your instance
+
+## What's Included
+
+This Docker Compose configuration includes the following services:
+
+- **[Studio](https://github.com/supabase/supabase/tree/master/apps/studio)** - A dashboard for managing your self-hosted Supabase project
+- **[Kong](https://github.com/Kong/kong)** - Kong API gateway
+- **[Auth](https://github.com/supabase/auth)** - JWT-based authentication API for user sign-ups, logins, and session management
+- **[PostgREST](https://github.com/PostgREST/postgrest)** - Web server that turns your PostgreSQL database directly into a RESTful API
+- **[Realtime](https://github.com/supabase/realtime)** - Elixir server that listens to PostgreSQL database changes and broadcasts them over websockets
+- **[Storage](https://github.com/supabase/storage)** - RESTful API for managing files in S3, with Postgres handling permissions
+- **[imgproxy](https://github.com/imgproxy/imgproxy)** - Fast and secure image processing server
+- **[postgres-meta](https://github.com/supabase/postgres-meta)** - RESTful API for managing Postgres (fetch tables, add roles, run queries)
+- **[PostgreSQL](https://github.com/supabase/postgres)** - Object-relational database with over 30 years of active development
+- **[Edge Runtime](https://github.com/supabase/edge-runtime)** - Web server based on Deno runtime for running JavaScript, TypeScript, and WASM services
+- **[Logflare](https://github.com/Logflare/logflare)** - Log management and event analytics platform
+- **[Vector](https://github.com/vectordotdev/vector)** - High-performance observability data pipeline for logs
+- **[Supavisor](https://github.com/supabase/supavisor)** - Supabase's Postgres connection pooler
 
 ## Documentation
 
-For full documentation, visit [supabase.com/docs](https://supabase.com/docs)
+- **[Self-Hosting with Docker](https://supabase.com/docs/guides/self-hosting/docker)** - Setup and configuration guides
+- **[Compose to UI mapping](./README.wapnet.md#compose-to-ui-mapping)** - Exact service-by-service map from compose services to the Supabase dashboard UI
+- **[VetSync DB Core PRD specification](./specs/VetSync%20DB%20Core%20PRD%20specification.md)** - Safe secret generation, volume reuse, restore, Supavisor tenant routing and SQLSTATE `28P01` recovery
+- **[CHANGELOG.md](./CHANGELOG.md)** - Track recent updates and changes to services
+- **[versions.md](./versions.md)** - Complete history of Docker image versions for rollback reference
+- **[Ask DeepWiki / Supabase](https://deepwiki.com/supabase/supabase/3-self-hosted-deployment)** - DeepWiki-generated description of self-hosted configuration
+- **[CONFIG.md](./CONFIG.md)** - Configuration reference for all environment variables
 
-To see how to Contribute, visit [Getting Started](./DEVELOPERS.md)
+## Updates
+
+To update your self-hosted Supabase instance:
+
+1. Review [CHANGELOG.md](./CHANGELOG.md) for breaking changes
+2. Check [versions.md](./versions.md) for new image versions
+3. Update `docker-compose.yml` if there are configuration changes
+4. Pull the latest images: `docker compose pull`
+5. Stop services: `docker compose down`
+6. Start services with new configuration: `docker compose up -d`
+
+**Note:** Consider to always backup your database before updating.
 
 ## Community & Support
 
-- [Community Forum](https://github.com/supabase/supabase/discussions). Best for: help with building, discussion about database best practices.
-- [GitHub Issues](https://github.com/supabase/supabase/issues). Best for: bugs and errors you encounter using Supabase.
-- [Email Support](https://supabase.com/docs/support#business-support). Best for: problems with your database or infrastructure.
-- [Discord](https://discord.supabase.com). Best for: sharing your applications and hanging out with the community.
+For troubleshooting common issues, see:
+- [GitHub Discussions](https://github.com/orgs/supabase/discussions?discussions_q=is%3Aopen+label%3Aself-hosted) - Questions, feature requests, and workarounds
+- [GitHub Issues](https://github.com/supabase/supabase/issues?q=is%3Aissue%20state%3Aopen%20label%3Aself-hosted) - Known issues
+- [Documentation](https://supabase.com/docs/guides/self-hosting) - Setup and configuration guides
 
-## How it works
+Self-hosted Supabase is community-supported. Get help and connect with other users:
 
-Supabase is a combination of open source tools. We’re building the features of Firebase using enterprise-grade, open source products. If the tools and communities exist, with an MIT, Apache 2, or equivalent open license, we will use and support that tool. If the tool doesn't exist, we build and open source it ourselves. Supabase is not a 1-to-1 mapping of Firebase. Our aim is to give developers a Firebase-like developer experience using open source tools.
+- [Discord](https://discord.supabase.com) - Real-time chat and community support
+- [Reddit](https://www.reddit.com/r/Supabase/) - Official Supabase subreddit
 
-**Architecture**
+Share your self-hosting experience:
 
-Supabase is a [hosted platform](https://supabase.com/dashboard). You can sign up and start using Supabase without installing anything.
-You can also [self-host](https://supabase.com/docs/guides/hosting/overview) and [develop locally](https://supabase.com/docs/guides/local-development).
+- [GitHub Discussions](https://github.com/orgs/supabase/discussions/39820) - "Self-hosting: What's working (and what's not)?"
 
-![Architecture](apps/docs/public/img/supabase-architecture.svg)
+## Important Notes
 
 - [Postgres](https://www.postgresql.org/) is an object-relational database system with over 30 years of active development that has earned it a strong reputation for reliability, feature robustness, and performance.
 - [Realtime](https://github.com/supabase/realtime) is an Elixir server that allows you to listen to PostgreSQL inserts, updates, and deletes using websockets. Realtime polls Postgres' built-in replication functionality for database changes, converts changes to JSON, then broadcasts the JSON over websockets to authorized clients.
@@ -59,9 +88,14 @@ You can also [self-host](https://supabase.com/docs/guides/hosting/overview) and 
 - [postgres-meta](https://github.com/supabase/postgres-meta) is a RESTful API for managing your Postgres, allowing you to fetch tables, add roles, and run queries, etc.
 - [Envoy](https://github.com/envoyproxy/envoy) is a cloud-native, high-performance edge and service proxy.
 
-#### Client libraries
+⚠️ **The default configuration is not secure for production use.**
 
-Our approach for client libraries is modular. Each sub-library is a standalone implementation for a single external system. This is one of the ways we support existing tools.
+Before deploying to production, you must:
+- [Update](https://supabase.com/docs/guides/self-hosting/docker#configuring-and-securing-supabase) all default passwords and secrets in the `.env` file
+- Review and update CORS settings
+- Consider setting up a secure proxy in front of self-hosted Supabase
+- Review and adjust network security configuration (ACLs, etc.)
+- Set up proper backup procedures
 
 <table style="table-layout:fixed; white-space: nowrap;">
   <tr>
@@ -198,91 +232,6 @@ Our approach for client libraries is modular. Each sub-library is a standalone i
   <!-- /notranslate -->
 </table>
 
-<!--- Remove this list if you're translating to another language, it's hard to keep updated across multiple files-->
-<!--- Keep only the link to the list of translation files-->
+## License
 
-## Badges
-
-![Made with Supabase](./apps/www/public/badge-made-with-supabase.svg)
-
-```md
-[![Made with Supabase](https://supabase.com/badge-made-with-supabase.svg)](https://supabase.com)
-```
-
-```html
-<a href="https://supabase.com">
-  <img
-    width="168"
-    height="30"
-    src="https://supabase.com/badge-made-with-supabase.svg"
-    alt="Made with Supabase"
-  />
-</a>
-```
-
-![Made with Supabase (dark)](./apps/www/public/badge-made-with-supabase-dark.svg)
-
-```md
-[![Made with Supabase](https://supabase.com/badge-made-with-supabase-dark.svg)](https://supabase.com)
-```
-
-```html
-<a href="https://supabase.com">
-  <img
-    width="168"
-    height="30"
-    src="https://supabase.com/badge-made-with-supabase-dark.svg"
-    alt="Made with Supabase"
-  />
-</a>
-```
-
-## Translations
-
-- [Arabic | العربية](/i18n/README.ar.md)
-- [Albanian / Shqip](/i18n/README.sq.md)
-- [Bangla / বাংলা](/i18n/README.bn.md)
-- [Bulgarian / Български](/i18n/README.bg.md)
-- [Catalan / Català](/i18n/README.ca.md)
-- [Croatian / Hrvatski](/i18n/README.hr.md)
-- [Czech / čeština](/i18n/README.cs.md)
-- [Danish / Dansk](/i18n/README.da.md)
-- [Dutch / Nederlands](/i18n/README.nl.md)
-- [English](https://github.com/supabase/supabase)
-- [Estonian / eesti keel](/i18n/README.et.md)
-- [Finnish / Suomalainen](/i18n/README.fi.md)
-- [French / Français](/i18n/README.fr.md)
-- [German / Deutsch](/i18n/README.de.md)
-- [Greek / Ελληνικά](/i18n/README.el.md)
-- [Gujarati / ગુજરાતી](/i18n/README.gu.md)
-- [Hebrew / עברית](/i18n/README.he.md)
-- [Hindi / हिंदी](/i18n/README.hi.md)
-- [Hungarian / Magyar](/i18n/README.hu.md)
-- [Nepali / नेपाली](/i18n/README.ne.md)
-- [Indonesian / Bahasa Indonesia](/i18n/README.id.md)
-- [Italiano / Italian](/i18n/README.it.md)
-- [Japanese / 日本語](/i18n/README.jp.md)
-- [Korean / 한국어](/i18n/README.ko.md)
-- [Lithuanian / lietuvių](/i18n/README.lt.md)
-- [Latvian / latviski](/i18n/README.lv.md)
-- [Malay / Bahasa Malaysia](/i18n/README.ms.md)
-- [Norwegian (Bokmål) / Norsk (Bokmål)](/i18n/README.nb.md)
-- [Persian / فارسی](/i18n/README.fa.md)
-- [Polish / Polski](/i18n/README.pl.md)
-- [Portuguese / Português](/i18n/README.pt.md)
-- [Portuguese (Brazilian) / Português Brasileiro](/i18n/README.pt-br.md)
-- [Romanian / Română](/i18n/README.ro.md)
-- [Russian / Pусский](/i18n/README.ru.md)
-- [Serbian / Srpski](/i18n/README.sr.md)
-- [Sinhala / සිංහල](/i18n/README.si.md)
-- [Slovak / slovenský](/i18n/README.sk.md)
-- [Slovenian / Slovenščina](/i18n/README.sl.md)
-- [Spanish / Español](/i18n/README.es.md)
-- [Simplified Chinese / 简体中文](/i18n/README.zh-cn.md)
-- [Swedish / Svenska](/i18n/README.sv.md)
-- [Thai / ไทย](/i18n/README.th.md)
-- [Traditional Chinese / 繁體中文](/i18n/README.zh-tw.md)
-- [Turkish / Türkçe](/i18n/README.tr.md)
-- [Ukrainian / Українська](/i18n/README.uk.md)
-- [Vietnamese / Tiếng Việt](/i18n/README.vi-vn.md)
-- [List of translations](/i18n/languages.md) <!--- Keep only this -->
+This repository is licensed under the Apache 2.0 License. See the main [Supabase repository](https://github.com/supabase/supabase) for details.

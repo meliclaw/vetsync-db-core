@@ -14,13 +14,17 @@
 #      starts with `--main-service /home/deno/functions/main`, so without it
 #      the container never comes up.
 #
-#   ./package-functions.sh                 # build only
-#   ./package-functions.sh --deploy HOST   # build, ship, activate
+#   APP_FUNCTIONS=/path/to/vetsync-vet/supabase/functions ./package-functions.sh
+#   APP_FUNCTIONS=... ./package-functions.sh --deploy HOST   # build, ship, activate
+#
+# APP_FUNCTIONS has no default: vetsync-vet moved once already (a hardcoded
+# relative climb silently rotted after that move, 2026-10-07), so it's a
+# required input instead of a guessed path.
 # ==============================================================================
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-APP_FUNCTIONS="${APP_FUNCTIONS:-$HERE/../../../../wapnet/vetsync-os/vetsync-vet/supabase/functions}"
+APP_FUNCTIONS="${APP_FUNCTIONS:?set APP_FUNCTIONS to the vetsync-vet/supabase/functions path}"
 MAIN_ROUTER="${MAIN_ROUTER:-$HERE/volumes/functions/main}"
 OUT_DIR="${OUT_DIR:-$HERE/.artifacts}"
 
